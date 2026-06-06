@@ -12,7 +12,14 @@ export const SAIRAM_DEPARTMENTS = [
   { code: 'AIDS', name: 'Artificial Intelligence & Data Science' },
   { code: 'EEE', name: 'Electrical & Electronics Engineering' },
   { code: 'MECH', name: 'Mechanical Engineering' },
-  { code: 'CSBS', name: 'Computer Science & Business Systems' }
+  { code: 'CSBS', name: 'Computer Science & Business Systems' },
+  { code: 'MTECH-CSE', name: 'M.Tech Computer Science & Engineering' },
+  { code: 'CYBER', name: 'Cyber Security' },
+  { code: 'MCT', name: 'Mechatronics Engineering' },
+  { code: 'CCE', name: 'Computer & Communication Engineering' },
+  { code: 'AIML', name: 'Artificial Intelligence & Machine Learning' },
+  { code: 'CSE-IOT', name: 'Computer Science & Engineering (IoT)' },
+  { code: 'EIE', name: 'Electronics & Instrumentation Engineering' }
 ];
 
 export const INITIAL_CONTRIBUTORS: Contributor[] = [

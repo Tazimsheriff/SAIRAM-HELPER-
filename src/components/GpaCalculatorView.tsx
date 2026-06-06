@@ -125,7 +125,7 @@ export default function GpaCalculatorView() {
                 onChange={(e) => setSelectedDept(e.target.value)}
                 className="text-xs font-bold bg-bg-surface border border-border-glass px-3 py-2 rounded-xl text-white outline-none cursor-pointer"
               >
-                {SAIRAM_DEPARTMENTS.slice(0, 5).map((dept) => (
+                {SAIRAM_DEPARTMENTS.map((dept) => (
                   <option key={dept.code} value={dept.code}>
                     {dept.code} Preset
                   </option>
