@@ -1,0 +1,6 @@
+{
+  "name": "THE HELPER - Sairam Academic Companion",
+  "description": "An academic resource hub, GPA-calculator, and contributor showcase built for Sri Sairam Engineering College & Sri Sairam Institute of Technology.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
