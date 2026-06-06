@@ -142,7 +142,11 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-slate-50/50 text-slate-700 font-sans antialiased selection:bg-indigo-600 selection:text-white">
+    <div className="min-h-screen flex flex-col bg-bg-base text-text-primary font-sans antialiased selection:bg-green-500 selection:text-black relative overflow-hidden">
+      {/* Dynamic ambient radial glows */}
+      <div className="fixed top-0 left-0 w-[500px] h-[500px] rounded-full bg-green-500/12 blur-[120px] pointer-events-none z-0 -translate-x-[20%] -translate-y-[20%]" />
+      <div className="fixed bottom-0 right-0 w-[600px] h-[600px] rounded-full bg-emerald-500/8 blur-[130px] pointer-events-none z-0 translate-x-[20%] translate-y-[20%]" />
+
       {/* Navbar segment */}
       <Navbar 
         currentTab={currentTab} 
@@ -151,7 +155,7 @@ export default function App() {
       />
 
       {/* Main Container Frame */}
-      <main className="flex-grow max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-8">
+      <main className="flex-grow max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-8 relative z-10">
         <AnimatePresence mode="wait">
           <motion.div
             key={currentTab}
@@ -195,84 +199,94 @@ export default function App() {
         </AnimatePresence>
       </main>
 
-      {/* Custom Sairam Footer (resembling Helpers layout footer) */}
-      <footer className="bg-slate-900 text-slate-400 mt-16 border-t border-slate-800">
+      {/* Custom Sairam Footer */}
+      <footer className="bg-bg-surface/60 border-t border-border-glass mt-16 backdrop-blur-md relative z-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-          <div className="flex flex-col md:flex-row items-center justify-between gap-6 border-b border-slate-800 pb-8">
-            <div className="text-center md:text-left space-y-1">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-6 border-b border-border-glass pb-8">
+            <div className="text-center md:text-left space-y-1.5">
               <div className="flex items-center justify-center md:justify-start space-x-2 text-white">
-                <Landmark className="h-5 w-5 text-indigo-400" />
-                <span className="font-extrabold tracking-tight">THE HELPER — Sairam Space Open Source</span>
+                <Landmark className="h-5 w-5 text-green-400" />
+                <span className="font-sans font-extrabold tracking-tight text-white">THE HELPER — Sairam Space Open Source</span>
               </div>
-              <p className="text-xs text-slate-500">Autonomous Academic Resource and GPA Platform made with 💙 for SSEC & SIT students.</p>
+              <p className="text-xs text-text-muted">Autonomous Academic Resource and GPA Platform made for SSEC & SIT students.</p>
+              <p className="text-[10px] font-mono tracking-wider text-green-400 uppercase">COA Visualiser ideated & developed by Yatindra Rai</p>
             </div>
 
             <div className="flex flex-wrap items-center justify-center gap-4 text-xs font-semibold">
-              <button onClick={() => setCurrentTab('home')} className="hover:text-white transition-colors">Home</button>
-              <button onClick={() => setCurrentTab('contributors')} className="hover:text-white transition-colors">Contributors</button>
-              <button onClick={() => setCurrentTab('resources')} className="hover:text-white transition-colors">Resources</button>
-              <button onClick={() => setCurrentTab('gpa')} className="hover:text-white transition-colors">HelperGPA+</button>
-              <button onClick={() => setCurrentTab('study')} className="hover:text-white transition-colors">Study Plus</button>
+              <button onClick={() => setCurrentTab('home')} className="text-text-muted hover:text-green-400 transition-colors">Home</button>
+              <button onClick={() => setCurrentTab('contributors')} className="text-text-muted hover:text-green-400 transition-colors">Contributors</button>
+              <button onClick={() => setCurrentTab('resources')} className="text-text-muted hover:text-green-400 transition-colors">Resources</button>
+              <button onClick={() => setCurrentTab('gpa')} className="text-text-muted hover:text-green-400 transition-colors">HelperGPA+</button>
+              <button onClick={() => setCurrentTab('study')} className="text-text-muted hover:text-green-400 transition-colors">Study Plus</button>
             </div>
           </div>
 
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-8 text-xs text-slate-500">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-8 text-xs text-text-muted">
             <p className="flex items-center gap-1">
-              <span>Made for Sairam, made by Sairamites</span>
-              <Heart className="h-3.5 w-3.5 text-pink-500 fill-pink-500" />
+              <span>Made with 💚 for Sairamites</span>
+              <Heart className="h-3.5 w-3.5 text-green-400 fill-green-400 animate-pulse" />
             </p>
-            <p className="text-[10px] tracking-wide">&copy; {new Date().getFullYear()} Sairam Academic Helper Portal. All educational assets belong to respective student creators.</p>
+            <p className="text-[10px] tracking-wide text-center md:text-right">&copy; {new Date().getFullYear()} Sairam Academic Helper Portal. Under student open source initiative.</p>
           </div>
         </div>
       </footer>
 
       {/* Share Dialog Modal */}
       {showShareModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
-          <div className="bg-white rounded-2xl max-w-sm w-full border border-slate-100 shadow-2xl p-6 relative overflow-hidden">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-md animate-fadeIn">
+          <div className="bg-bg-surface border border-border-glass rounded-2xl max-w-sm w-full shadow-2xl p-6 relative overflow-hidden">
+            <div className="absolute top-0 right-0 -mr-12 -mt-12 w-24 h-24 rounded-full bg-green-500/10 blur-xl pointer-events-none"></div>
             
-            <div className="flex justify-between items-center mb-4 pb-2 border-b border-slate-100">
-              <h4 className="font-extrabold text-slate-800 text-base flex items-center gap-1.5">
-                <Sparkles className="h-4 w-4 text-indigo-600" /> Share with Friends
+            <div className="flex justify-between items-center mb-4 pb-2 border-b border-border-glass">
+              <h4 className="font-extrabold text-white text-base flex items-center gap-1.5">
+                <Sparkles className="h-4 w-4 text-green-400" /> Share Portal
               </h4>
               <button 
                 onClick={() => setShowShareModal(false)}
-                className="p-1 px-2.5 text-slate-400 hover:text-slate-700 bg-slate-50 rounded-lg text-xs font-bold"
+                className="p-1 px-2.5 text-text-muted hover:text-white bg-white/5 rounded-lg text-xs font-bold transition-all"
               >
                 ✕
               </button>
             </div>
 
             <div className="space-y-4">
-              <p className="text-xs text-slate-500 leading-relaxed">
-                Copy the link below and share it in your Sairam WhatsApp Groups, Discord servers, or Telegram channels with classmates!
+              <div className="flex items-center gap-2">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-green-400"></span>
+                </span>
+                <span className="text-[10px] font-mono tracking-widest text-green-400 uppercase">Interactive Companion Network</span>
+              </div>
+
+              <p className="text-xs text-text-muted leading-relaxed">
+                Copy the link below to share it in your Sairam WhatsApp Groups or Discord channels with fellow students!
               </p>
 
-              <div className="flex items-center gap-2 bg-slate-50 p-2 rounded-xl border border-slate-200">
+              <div className="flex items-center gap-2 bg-white/5 p-2 rounded-xl border border-border-glass">
                 <input
                   type="text"
                   readOnly
                   value={window.location.href}
-                  className="w-full bg-transparent text-xs text-slate-600 font-mono focus:outline-none select-all"
+                  className="w-full bg-transparent text-xs text-text-primary font-mono focus:outline-none select-all"
                 />
                 <button
                   onClick={handleCopyLink}
-                  className="p-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-all"
+                  className="p-2 bg-green-500 hover:bg-green-600 text-black font-bold rounded-lg transition-all cursor-pointer shadow-[0_0_10px_rgba(34,197,94,0.3)]"
                 >
                   {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
                 </button>
               </div>
 
               {copied && (
-                <p className="text-[10px] font-bold text-center text-emerald-600 flex items-center justify-center gap-1 animate-pulse">
-                  ✓ Companion Link copied successfully!
+                <p className="text-[10px] font-bold text-center text-green-400 flex items-center justify-center gap-1 animate-pulse">
+                  ✓ Portal URL Copied!
                 </p>
               )}
 
-              <div className="bg-slate-50 p-3 rounded-xl border border-slate-100/80 flex items-start gap-2.5">
-                <Info className="h-4.5 w-4.5 text-indigo-500 flex-shrink-0 mt-0.5" />
-                <p className="text-[10px] text-indigo-700 leading-relaxed">
-                  <strong>Tip:</strong> Sairam Students can submit drive folders directly on our notes tab to expand the pool of notes. Let's study smarter.
+              <div className="bg-white/3 border border-border-glass p-3 rounded-xl flex items-start gap-2.5">
+                <Info className="h-4.5 w-4.5 text-green-400 flex-shrink-0 mt-0.5" />
+                <p className="text-[10px] text-text-muted leading-relaxed">
+                  <strong>Tip:</strong> Sairam Students can submit their personal folders securely on our Notes catalog tab to grow the shared SSEC & SIT repository.
                 </p>
               </div>
             </div>
