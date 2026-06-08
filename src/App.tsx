@@ -132,6 +132,12 @@ export default function App() {
     window.open(resItem.downloadUrl, '_blank', 'noopener,noreferrer');
   };
 
+  // Delete Resource
+  const handleDeleteResource = (id: string) => {
+    const updated = resources.filter((r) => r.id !== id);
+    saveResources(updated);
+  };
+
   // Copy URL to clipboard
   const handleCopyLink = () => {
     const pageUrl = window.location.href;
@@ -185,6 +191,7 @@ export default function App() {
                 onDownloadResource={handleDownloadResource}
                 onLikeResource={handleLikeResource}
                 onAddResource={handleAddResource}
+                onDeleteResource={handleDeleteResource}
               />
             )}
             
