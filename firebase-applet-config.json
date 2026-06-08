@@ -1,0 +1,9 @@
+{
+  "apiKey": "AIzaSyDummyKeyForSairamPlatformDevMode",
+  "authDomain": "sairam-companion-dev.firebaseapp.com",
+  "projectId": "sairam-companion-dev",
+  "storageBucket": "sairam-companion-dev.appspot.com",
+  "messagingSenderId": "1234567890",
+  "appId": "1:1234567890:web:abcdef123456",
+  "firestoreDatabaseId": "(default)"
+}

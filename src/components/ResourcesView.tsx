@@ -1,8 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Search, BookOpen, Download, Filter, PlusCircle, Sparkles, HelpCircle, 
-  Calendar, GraduationCap, Check, Send, Trash2, ShieldAlert, Clock, 
-  UserCheck, Lock, Unlock, CheckCircle2, XCircle, History
+  Send, Trash2
 } from 'lucide-react';
 import { Resource } from '../types';
 import { SAIRAM_DEPARTMENTS } from '../data';
@@ -14,23 +13,7 @@ interface ResourcesViewProps {
   onLikeResource: (id: string) => void;
   onAddResource: (newResource: Omit<Resource, 'id' | 'downloadsCount' | 'likes'>) => void;
   onDeleteResource: (id: string) => void;
-}
-
-interface ModeratorAction {
-  id: string;
-  type: 'ADD' | 'DELETE';
-  timestamp: string;
-  contributorName: string;
-  status: 'PENDING' | 'APPROVED' | 'DECLINED';
-  reason?: string;
-  subjectCode?: string;
-  subjectName?: string;
-  department?: string;
-  semester?: number;
-  materialType?: Resource['type'];
-  downloadUrl?: string;
-  targetResourceId?: string;
-  targetResource?: Omit<Resource, 'id' | 'downloadsCount' | 'likes'>;
+  user?: any;
 }
 
 export default function ResourcesView({
@@ -38,7 +21,8 @@ export default function ResourcesView({
   onDownloadResource,
   onLikeResource,
   onAddResource,
-  onDeleteResource
+  onDeleteResource,
+  user
 }: ResourcesViewProps) {
   // Navigation & Filter options
   const [searchTerm, setSearchTerm] = useState('');
@@ -46,13 +30,19 @@ export default function ResourcesView({
   const [selectedSemester, setSelectedSemester] = useState<number>(0);
   const [selectedType, setSelectedType] = useState<string>('All');
   
-  // Custom Role State (Simulating: student | contributor | admin)
-  const [userRole, setUserRole] = useState<'student' | 'contributor' | 'admin'>(() => {
-    const saved = localStorage.getItem('sairam_user_role');
-    return (saved as 'student' | 'contributor' | 'admin') || 'student';
-  });
+  // Guest view configuration: any student can publish or download materials directly.
+  useEffect(() => {
+    const cachedName = localStorage.getItem('sairam_contributor_name');
+    if (cachedName) {
+      setFormData(prev => ({
+        ...prev,
+        uploadedBy: cachedName
+      }));
+    }
+  }, []);
 
   const [showAuditLogs, setShowAuditLogs] = useState(false);
+
 
   // Submit resource form states
   const [showUploadModal, setShowUploadModal] = useState(false);
@@ -63,16 +53,17 @@ export default function ResourcesView({
     semester: 5,
     type: 'Notes' as Resource['type'],
     downloadUrl: '',
-    uploadedBy: ''
+    uploadedBy: '',
+    accessCode: ''
   });
   const [formError, setFormError] = useState('');
   const [isSuccess, setIsSuccess] = useState(false);
 
-  // Deletion Proposal form states
+  // Deletion form states with passcode authentication
   const [showDeletionModal, setShowDeletionModal] = useState(false);
   const [selectedResourceForDeletion, setSelectedResourceForDeletion] = useState<Resource | null>(null);
-  const [deletionContributorName, setDeletionContributorName] = useState('');
   const [deletionReason, setDeletionReason] = useState('');
+  const [deletionPasscode, setDeletionPasscode] = useState('');
 
   // Toast notifier states
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -83,143 +74,53 @@ export default function ResourcesView({
     }, 4500);
   };
 
-  // Moderator actions approval list
-  const [pendingActions, setPendingActions] = useState<ModeratorAction[]>(() => {
-    const saved = localStorage.getItem('sairam_moderator_actions');
-    if (saved) return JSON.parse(saved);
-    return [
-      {
-        id: 'act-1',
-        type: 'ADD',
-        timestamp: new Date(Date.now() - 3600000 * 2).toISOString(),
-        contributorName: 'Abishek S',
-        status: 'PENDING',
-        subjectCode: 'CCS356',
-        subjectName: 'Object Oriented Analysis & Design Unit 4 & 5 Complete Reference PDF',
-        department: 'CSE',
-        semester: 5,
-        materialType: 'Notes',
-        downloadUrl: 'https://drive.google.com/drive/folders/1Sairam_OOAD_Unit4',
-        targetResource: {
-          subjectCode: 'CCS356',
-          subjectName: 'Object Oriented Analysis & Design Unit 4 & 5 Complete Reference PDF',
-          department: 'CSE',
-          semester: 5,
-          type: 'Notes',
-          downloadUrl: 'https://drive.google.com/drive/folders/1Sairam_OOAD_Unit4',
-          uploadedBy: 'Abishek S',
-          fileSize: '12.4 MB'
-        }
-      },
-      {
-        id: 'act-2',
-        type: 'DELETE',
-        timestamp: new Date(Date.now() - 3600000 * 4).toISOString(),
-        contributorName: 'Ramya Devi R',
-        status: 'PENDING',
-        reason: 'The drive folder is showing empty or deleted file node.',
-        targetResourceId: 'r4',
-        subjectCode: 'CCS349',
-        subjectName: 'Data Structures Lab Manual with Solutions'
-      }
-    ];
-  });
-
-  const saveActions = (list: ModeratorAction[]) => {
-    setPendingActions(list);
-    localStorage.setItem('sairam_moderator_actions', JSON.stringify(list));
-  };
-
-  const handleRoleChange = (role: 'student' | 'contributor' | 'admin') => {
-    setUserRole(role);
-    localStorage.setItem('sairam_user_role', role);
-    triggerToast(`Active profile switched to ${role.toUpperCase()} simulated console.`);
-  };
-
-  // Propose/Delete actions submission
+  // Trigger Direct Deletion on passcode validation
   const handleProposeDeletion = (res: Resource) => {
-    if (userRole === 'student') {
-      triggerToast('🔒 Access Restricted: Regular students cannot request note deletion.');
-      return;
-    }
     setSelectedResourceForDeletion(res);
-    setDeletionContributorName(userRole === 'contributor' ? 'Abishek S' : '');
     setDeletionReason('');
+    setDeletionPasscode('');
     setShowDeletionModal(true);
   };
 
-  const handleDeletionSubmit = (e: React.FormEvent) => {
+  const handleDeletionSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!deletionContributorName.trim() || !deletionReason.trim()) {
-      triggerToast('Please provide moderator name and a valid reason.');
+    if (!deletionReason.trim()) {
+      triggerToast('Please provide a valid reason or report detail.');
+      return;
+    }
+    if (!deletionPasscode.trim()) {
+      triggerToast('Please enter the required passcode to delete.');
       return;
     }
 
-    if (!selectedResourceForDeletion) return;
+    try {
+      const code = deletionPasscode.trim().toUpperCase();
+      const response = await fetch('/api/verify-passcode', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ passcode: code })
+      });
 
-    if (userRole === 'admin') {
-      // Admins delete directly
+      if (!response.ok) {
+        triggerToast('❌ Incorrect Passcode. Deletion denied.');
+        return;
+      }
+
+      const resData = await response.json();
+      if (!resData.success) {
+        triggerToast('❌ Incorrect Passcode. Deletion denied.');
+        return;
+      }
+
+      if (!selectedResourceForDeletion) return;
+
       onDeleteResource(selectedResourceForDeletion.id);
-      triggerToast(`Removed [${selectedResourceForDeletion.subjectCode}] directly from Sairam catalog.`);
-      
-      const instantLog: ModeratorAction = {
-        id: `act-${Date.now()}`,
-        type: 'DELETE',
-        timestamp: new Date().toISOString(),
-        contributorName: 'Administrator (Direct Exec)',
-        status: 'APPROVED',
-        reason: deletionReason.trim() + ' (Direct Exec)',
-        targetResourceId: selectedResourceForDeletion.id,
-        subjectCode: selectedResourceForDeletion.subjectCode,
-        subjectName: selectedResourceForDeletion.subjectName
-      };
-      saveActions([instantLog, ...pendingActions]);
+      triggerToast(`Successfully deleted [${selectedResourceForDeletion.subjectCode}] from Sairam catalog.`);
       setShowDeletionModal(false);
-    } else {
-      // Contributors queue a proposal
-      const action: ModeratorAction = {
-        id: `act-${Date.now()}`,
-        type: 'DELETE',
-        timestamp: new Date().toISOString(),
-        contributorName: deletionContributorName.trim(),
-        status: 'PENDING',
-        reason: deletionReason.trim(),
-        targetResourceId: selectedResourceForDeletion.id,
-        subjectCode: selectedResourceForDeletion.subjectCode,
-        subjectName: selectedResourceForDeletion.subjectName
-      };
-
-      saveActions([action, ...pendingActions]);
-      triggerToast(`Removal proposal for ${selectedResourceForDeletion.subjectCode} sent to Admin queue.`);
-      setShowDeletionModal(false);
+    } catch (err) {
+      console.error('Passcode verification error:', err);
+      triggerToast('⚠️ Server connection failed. Try again.');
     }
-  };
-
-  // Authorize Pending Moderator queues
-  const handleAuthorizeAction = (actionId: string, decision: 'APPROVED' | 'DECLINED') => {
-    const updated = pendingActions.map((a) => {
-      if (a.id === actionId) {
-        return { ...a, status: decision };
-      }
-      return a;
-    });
-
-    const targetAction = pendingActions.find(a => a.id === actionId);
-    if (!targetAction) return;
-
-    if (decision === 'APPROVED') {
-      if (targetAction.type === 'ADD' && targetAction.targetResource) {
-        onAddResource(targetAction.targetResource);
-        triggerToast(`APPROVED: Uploaded "${targetAction.subjectName}" to live drives.`);
-      } else if (targetAction.type === 'DELETE' && targetAction.targetResourceId) {
-        onDeleteResource(targetAction.targetResourceId);
-        triggerToast(`APPROVED: Removed "${targetAction.subjectName}" from live drives.`);
-      }
-    } else {
-      triggerToast(`CANCELED: Declined proposal submitted by ${targetAction.contributorName}.`);
-    }
-
-    saveActions(updated);
   };
 
   // Type color map
@@ -245,10 +146,10 @@ export default function ResourcesView({
 
   const semestersList = [1, 2, 3, 4, 5, 6, 7, 8];
 
-  const handleUploadSubmit = (e: React.FormEvent) => {
+  const handleUploadSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.subjectCode || !formData.subjectName || !formData.downloadUrl || !formData.uploadedBy) {
-      setFormError('Please fill in all required fields.');
+    if (!formData.subjectCode || !formData.subjectName || !formData.downloadUrl || !formData.uploadedBy || !formData.accessCode) {
+      setFormError('Please fill in all required fields including the access passcode.');
       return;
     }
 
@@ -257,64 +158,67 @@ export default function ResourcesView({
       return;
     }
 
-    if (userRole === 'student') {
-      setFormError('Authorization Error: Student accounts are restricted from modifying catalog records.');
-      return;
-    }
+    setFormError('');
+    setIsSuccess(false);
 
-    const freshTargetResource = {
-      subjectCode: formData.subjectCode.trim().toUpperCase(),
-      subjectName: formData.subjectName.trim(),
-      department: formData.department,
-      semester: Number(formData.semester),
-      type: formData.type,
-      downloadUrl: formData.downloadUrl.trim(),
-      uploadedBy: formData.uploadedBy.trim(),
-      fileSize: '6.4 MB'
-    };
+    try {
+      const passcodeClean = formData.accessCode.trim().toUpperCase();
+      const response = await fetch('/api/verify-passcode', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ passcode: passcodeClean })
+      });
 
-    if (userRole === 'admin') {
-      // Direct update
-      onAddResource(freshTargetResource);
-      setIsSuccess(true);
-      triggerToast(`Published resource ${formData.subjectCode} onto Sairam drive as Administrator.`);
-    } else {
-      // Moderator proposal
-      const newProposal: ModeratorAction = {
-        id: `act-${Date.now()}`,
-        type: 'ADD',
-        timestamp: new Date().toISOString(),
-        contributorName: formData.uploadedBy.trim(),
-        status: 'PENDING',
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        setFormError(errData.message || '❌ Invalid Passcode. Access is denied.');
+        return;
+      }
+
+      const resData = await response.json();
+      if (!resData.success) {
+        setFormError(resData.message || '❌ Invalid Passcode. Access is denied.');
+        return;
+      }
+
+      const freshTargetResource = {
         subjectCode: formData.subjectCode.trim().toUpperCase(),
         subjectName: formData.subjectName.trim(),
         department: formData.department,
         semester: Number(formData.semester),
-        materialType: formData.type,
+        type: formData.type,
         downloadUrl: formData.downloadUrl.trim(),
-        targetResource: freshTargetResource
+        uploadedBy: formData.uploadedBy.trim(),
+        fileSize: '6.4 MB'
       };
 
-      saveActions([newProposal, ...pendingActions]);
+      // Cache contributor name for next uploads
+      localStorage.setItem('sairam_contributor_name', formData.uploadedBy.trim());
+
+      // Direct update to local/Firestore state manager
+      onAddResource(freshTargetResource);
       setIsSuccess(true);
+      triggerToast(`Published resource ${formData.subjectCode} onto Sairam drive catalog.`);
+
+      setTimeout(() => {
+        setShowUploadModal(false);
+        setIsSuccess(false);
+        // Reset form (keeping contributor name cached)
+        setFormData({
+          subjectCode: '',
+          subjectName: '',
+          department: 'CSE',
+          semester: 5,
+          type: 'Notes',
+          downloadUrl: '',
+          uploadedBy: formData.uploadedBy.trim(),
+          accessCode: ''
+        });
+      }, 2000);
+    } catch (err) {
+      console.error('Passcode verification error:', err);
+      setFormError('⚠️ Failed to connect to server. Please try again.');
     }
-
-    setFormError('');
-
-    setTimeout(() => {
-      setShowUploadModal(false);
-      setIsSuccess(false);
-      // Reset form
-      setFormData({
-        subjectCode: '',
-        subjectName: '',
-        department: 'CSE',
-        semester: 5,
-        type: 'Notes',
-        downloadUrl: '',
-        uploadedBy: ''
-      });
-    }, 2400);
   };
 
   return (
@@ -343,175 +247,36 @@ export default function ResourcesView({
         )}
       </AnimatePresence>
 
-      {/* Role Switcher Deck */}
-      <div className="glass-card bg-slate-950/60 border border-green-500/20 p-5 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-5 shadow-[0_0_20px_rgba(34,197,94,0.05)]">
-        <div className="space-y-1 text-center md:text-left">
+      {/* Sairam Academic Master Google Drive Section */}
+      <div className="glass-card bg-gradient-to-r from-emerald-950/40 to-slate-950/60 border border-green-500/20 p-5 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-5 shadow-[0_0_20px_rgba(34,197,94,0.03)]">
+        <div className="space-y-2 text-center md:text-left">
           <div className="flex items-center justify-center md:justify-start gap-2">
-            <ShieldAlert className="h-4 w-4 text-green-400" />
+            <Sparkles className="h-4 w-4 text-green-400 animate-pulse" />
+            <span className="text-[9px] py-0.5 px-2 bg-green-500/15 border border-green-500/30 text-green-300 font-mono font-bold rounded uppercase tracking-wider">Master Sairam Folder</span>
             <h2 className="text-xs font-sans font-black text-white tracking-tight uppercase">
-              Dynamic Sairam Moderation & Approval Desk
+              SSEC & SIT Academic Master Drive
             </h2>
           </div>
-          <p className="text-[11px] text-text-muted leading-relaxed">
-            Simulate academic profiles to test our multi-tiered Moderation loop. Contributors propose; Admins approve.
+          <p className="text-xs text-text-muted leading-relaxed max-w-2xl">
+            Access the unified central study folders directly on Google Drive! Includes books, lecture slides, and past assessment materials organized semester-wise. 100% fast, responsive, offline-persistent, and always available.
           </p>
         </div>
-        
-        <div className="flex bg-white/3 p-1 rounded-xl border border-border-glass shrink-0">
-          {(['student', 'contributor', 'admin'] as const).map((role) => (
-            <button
-              key={role}
-              onClick={() => handleRoleChange(role)}
-              className={`px-3.5 py-2.5 text-xs font-black tracking-wide rounded-lg uppercase cursor-pointer transition-all select-none flex items-center gap-1.5 ${
-                userRole === role
-                  ? 'bg-green-500 text-black shadow-md shadow-green-500/10'
-                  : 'text-text-muted hover:text-white'
-              }`}
-            >
-              {role === 'student' && <GraduationCap className="h-3.5 w-3.5" />}
-              {role === 'contributor' && <UserCheck className="h-3.5 w-3.5" />}
-              {role === 'admin' && <Lock className="h-3.5 w-3.5" />}
-              <span>{role}</span>
-            </button>
-          ))}
+        <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto shrink-0 justify-end">
+          <a
+            href="https://drive.google.com/drive/folders/1SairamAcademicCompanion_MasterDrive"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="w-full sm:w-auto text-center inline-flex items-center justify-center gap-2 bg-green-500 hover:bg-green-600 text-black font-extrabold text-xs uppercase tracking-wider px-5 py-3 rounded-xl cursor-pointer hover:shadow-[0_0_15px_rgba(34,197,94,0.3)] transition-all transform hover:scale-[1.01]"
+          >
+            <Download className="h-4 w-4" />
+            <span>Open Master Drive</span>
+          </a>
+          <span className="hidden sm:inline text-border-glass">|</span>
+          <div className="flex items-center gap-1.5 px-3 py-2 bg-green-500/5 border border-green-500/15 rounded-xl text-[10px] text-green-400 font-mono font-black uppercase tracking-wide select-none">
+            <span>⚡ Direct Google Link Sync</span>
+          </div>
         </div>
       </div>
-
-      {/* ADMIN CONTROL DESK */}
-      {userRole === 'admin' && (
-        <motion.div 
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="glass-card bg-slate-950/90 border border-green-500/30 p-6 rounded-2xl space-y-6 shadow-2xl relative overflow-hidden"
-        >
-          <div className="absolute top-0 right-0 -mr-12 -mt-12 w-24 h-24 rounded-full bg-green-500/10 blur-xl pointer-events-none"></div>
-          
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-border-glass">
-            <div className="flex items-center gap-2.5">
-              <div className="p-2 bg-green-500/10 text-green-300 border border-green-500/30 rounded-xl">
-                <Lock className="h-5 w-5" />
-              </div>
-              <div>
-                <h3 className="text-sm font-black text-white uppercase tracking-tight">Sairam Space Admin Control Desk</h3>
-                <p className="text-xs text-text-muted">Review and authorize pending contributions from academic moderators.</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="h-2.5 w-2.5 rounded-full bg-emerald-550 animate-pulse" />
-              <span className="text-[10px] font-mono font-bold text-green-400">Admin Live Sandbox</span>
-            </div>
-          </div>
-
-          <div className="space-y-4">
-            <h4 className="text-xs font-mono font-black text-green-300 tracking-wider uppercase flex items-center gap-1.5">
-              <Clock className="h-3.5 w-3.5" /> Pending Authorizations ({pendingActions.filter(a => a.status === 'PENDING').length})
-            </h4>
-            
-            {pendingActions.filter(a => a.status === 'PENDING').length === 0 ? (
-              <div className="py-8 text-center border border-dashed border-border-glass rounded-xl text-text-muted text-xs font-medium bg-black/10">
-                🕊️ No actions await moderation. Beautiful! All entries are fully in-sync.
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 gap-4">
-                {pendingActions.filter(a => a.status === 'PENDING').map((action) => (
-                  <div key={action.id} className="p-4 bg-white/2 border border-border-glass rounded-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4 hover:border-green-500/20 transition-all">
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className={`px-2 py-0.5 rounded text-[8px] font-mono font-bold tracking-wide ${
-                          action.type === 'ADD' 
-                            ? 'bg-blue-500/15 text-blue-300 border border-blue-500/25' 
-                            : 'bg-rose-500/15 text-rose-300 border border-rose-550/25'
-                        }`}>
-                          {action.type === 'ADD' ? 'PROPOSAL: ADD DRIVE' : 'PROPOSAL: REMOVE DRIVE'}
-                        </span>
-                        <span className="text-[10px] text-text-muted">sub by <strong className="text-white">{action.contributorName}</strong></span>
-                        <span className="text-border-glass">•</span>
-                        <span className="text-[10px] text-text-muted font-mono">{new Date(action.timestamp).toLocaleTimeString()}</span>
-                      </div>
-
-                      {action.type === 'ADD' ? (
-                        <div className="space-y-1">
-                          <p className="text-xs font-extrabold text-slate-100 flex items-center gap-1.5">
-                            <span className="text-[9px] font-mono text-green-300 bg-white/5 border border-border-glass px-1.5 py-0.25 rounded">{action.subjectCode}</span> 
-                            {action.subjectName}
-                          </p>
-                          <p className="text-[10px] text-text-muted">
-                            Branch: <strong className="text-slate-300">{action.department}</strong> | Semester: <strong className="text-slate-300">{action.semester}</strong> | Type: <strong className="text-slate-300">{action.materialType}</strong> | Link: <a href={action.downloadUrl} target="_blank" rel="noreferrer" className="text-green-400 font-semibold hover:underline bg-white/3 px-1 py-0.25 rounded">{action.downloadUrl?.substring(0, 32)}...</a>
-                          </p>
-                        </div>
-                      ) : (
-                        <div className="space-y-1">
-                          <p className="text-xs font-extrabold text-white/95">
-                            Remove Resource: <span className="text-rose-300">{action.subjectName}</span> ({action.subjectCode})
-                          </p>
-                          <p className="text-[10px] text-rose-450 leading-relaxed font-semibold">
-                            Reason: <span className="italic">"{action.reason}"</span>
-                          </p>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Approval Buttons */}
-                    <div className="flex items-center gap-2 shrink-0 self-end md:self-auto">
-                      <button 
-                        onClick={() => handleAuthorizeAction(action.id, 'APPROVED')}
-                        className="bg-green-500 hover:bg-green-600 text-black font-extrabold text-[10px] tracking-wider uppercase px-3.5 py-2.5 rounded-xl cursor-pointer shadow-lg shadow-green-500/10 flex items-center gap-1.5 hover:scale-[1.01] active:translate-y-0.5 transition-all text-center min-h-[38px]"
-                      >
-                        <CheckCircle2 className="h-3.5 w-3.5" />
-                        <span>Approve</span>
-                      </button>
-                      <button 
-                        onClick={() => handleAuthorizeAction(action.id, 'DECLINED')}
-                        className="bg-white/5 hover:bg-white/10 hover:text-rose-400 border border-border-glass text-text-muted font-bold text-[10px] tracking-wider uppercase px-3.5 py-2.5 rounded-xl cursor-pointer flex items-center gap-1.5 hover:scale-[1.01] active:translate-y-0.5 transition-all"
-                      >
-                        <XCircle className="h-3.5 w-3.5" />
-                        <span>Decline</span>
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* Audit Logs Trail */}
-            <div className="pt-4 border-t border-border-glass space-y-3">
-              <button 
-                onClick={() => setShowAuditLogs(!showAuditLogs)}
-                className="text-xs font-mono font-bold text-green-400 hover:underline flex items-center gap-1.5 cursor-pointer"
-              >
-                <History className="h-4 w-4" />
-                <span>{showAuditLogs ? '▼ Close Administration Logs' : '▶ Open Administration Logs'}</span>
-              </button>
-
-              {showAuditLogs && (
-                <div className="space-y-2 max-h-48 overflow-y-auto pr-2 bg-black/30 p-3 rounded-xl border border-border-glass">
-                  {pendingActions.filter(a => a.status !== 'PENDING').length === 0 ? (
-                    <p className="text-[10px] text-text-muted font-mono italic">No actions archived. Approve or Decline proposals above to track logs.</p>
-                  ) : (
-                    pendingActions.filter(a => a.status !== 'PENDING').map(action => (
-                      <div key={action.id} className="p-2.5 bg-black/20 border border-border-glass rounded-lg text-[10px] font-mono flex justify-between items-center gap-3">
-                        <div className="space-y-0.5">
-                          <p className="text-slate-200 font-extrabold">
-                            [{action.type}] {action.subjectCode} - {action.subjectName}
-                          </p>
-                          <p className="text-text-muted">
-                            Initiated by {action.contributorName} • Decision is logged.
-                          </p>
-                        </div>
-                        <span className={`px-2 py-0.5 rounded text-[8px] font-bold tracking-wide ${
-                          action.status === 'APPROVED' ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/20' : 'bg-rose-500/15 text-rose-400 border border-rose-550/20'
-                        }`}>
-                          {action.status}
-                        </span>
-                      </div>
-                    ))
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-        </motion.div>
-      )}
 
       {/* Page Title & Proposal trigger */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -524,21 +289,11 @@ export default function ResourcesView({
           </p>
         </div>
         <button
-          onClick={() => {
-            if (userRole === 'student') {
-              triggerToast('🔒 Restricted: Switch profile representation to Contributor or Admin to write files!');
-            } else {
-              setShowUploadModal(true);
-            }
-          }}
-          className={`inline-flex items-center space-x-2 border font-bold px-4 py-2.5 rounded-xl text-xs uppercase tracking-wider transition-all self-start md:self-auto cursor-pointer ${
-            userRole === 'student'
-              ? 'bg-white/3 text-text-muted/65 border-border-glass cursor-not-allowed opacity-50'
-              : 'bg-green-500/10 hover:bg-green-500/20 text-green-400 border-green-500/40 shadow-[0_0_15px_rgba(34,197,94,0.15)] hover:scale-[1.01] active:scale-95'
-          }`}
+          onClick={() => setShowUploadModal(true)}
+          className="inline-flex items-center space-x-2 border font-bold px-4 py-2.5 rounded-xl text-xs uppercase tracking-wider transition-all self-start md:self-auto cursor-pointer bg-green-500/10 hover:bg-green-500/20 text-green-400 border-green-500/40 shadow-[0_0_15px_rgba(34,197,94,0.15)] hover:scale-[1.01] active:scale-95"
         >
           <PlusCircle className="h-4.5 w-4.5" />
-          <span>Propose Note Drive</span>
+          <span>Upload Study Notes</span>
         </button>
       </div>
 
@@ -729,14 +484,10 @@ export default function ResourcesView({
                         {/* Remove Action */}
                         <button
                           onClick={() => handleProposeDeletion(res)}
-                          className={`p-2 rounded-xl border cursor-pointer transition-all active:scale-95 flex items-center justify-center min-h-[34px] min-w-[34px] ${
-                            userRole === 'student'
-                              ? 'bg-white/2 border-border-glass text-slate-500 opacity-30 hover:opacity-100 hover:border-slate-400 hover:text-white'
-                              : 'bg-rose-500/10 hover:bg-rose-600 hover:text-white text-rose-400 border-rose-550/20 shadow-md'
-                          }`}
-                          title={userRole === 'student' ? '🔒 Removal Proposing Restricted (Students)' : '🗑️ Propose Drive Removal'}
+                          className="p-2 rounded-xl border cursor-pointer transition-all active:scale-95 flex items-center justify-center min-h-[34px] min-w-[34px] bg-rose-500/10 hover:bg-rose-600 hover:text-white text-rose-450 border-rose-500/20 shadow-md"
+                          title="🗑️ Delete Note Drive"
                         >
-                          {userRole === 'student' ? <Lock className="h-3.5 w-3.5" /> : <Trash2 className="h-3.5 w-3.5" />}
+                          <Trash2 className="h-3.5 w-3.5" />
                         </button>
 
                         <button
@@ -812,14 +563,10 @@ export default function ResourcesView({
                 <div className="flex gap-2">
                   <button
                     onClick={() => handleProposeDeletion(res)}
-                    className={`px-3 py-2 border rounded-xl flex items-center justify-center min-h-[44px] min-w-[44px] cursor-pointer touch-manipulation ${
-                      userRole === 'student'
-                        ? 'bg-white/2 border-border-glass text-slate-500 opacity-45 hover:opacity-100 hover:text-white'
-                        : 'bg-rose-500/10 text-rose-455 border-rose-500/20 bg-rose-950/20'
-                    }`}
-                    title="Trash propose file removal"
+                    className="px-3 py-2 border rounded-xl flex items-center justify-center min-h-[44px] min-w-[44px] cursor-pointer touch-manipulation bg-rose-500/10 text-rose-450 border-rose-500/20 hover:bg-rose-600 hover:text-white"
+                    title="Delete Note Drive"
                   >
-                    {userRole === 'student' ? <Lock className="h-4 w-4 text-slate-500" /> : <Trash2 className="h-4 w-4" />}
+                    <Trash2 className="h-4 w-4" />
                   </button>
 
                   <button
@@ -854,12 +601,10 @@ export default function ResourcesView({
             <div className="flex justify-between items-center mb-5 pb-3 border-b border-border-glass">
               <div>
                 <h3 className="font-extrabold text-white text-lg">
-                  {userRole === 'admin' ? 'Publish Academic Drive' : 'Propose Lecture Notes'}
+                  Upload Lecture Notes
                 </h3>
                 <p className="text-xs text-text-muted mt-0.5">
-                  {userRole === 'admin' 
-                    ? 'Publish study materials instantly onto the live dashboard.' 
-                    : 'Submit study drives to Admin review workspace for approval.'}
+                  Publish study materials instantly onto the live dashboard.
                 </p>
               </div>
               <button 
@@ -876,12 +621,10 @@ export default function ResourcesView({
                   <Send className="h-8 w-8 text-green-400 animate-bounce" />
                 </div>
                 <h4 className="text-xl font-black text-white">
-                  {userRole === 'admin' ? 'Resource Published!' : 'Propose submitted successfully'}
+                  Resource Published!
                 </h4>
                 <p className="text-sm text-text-muted max-w-xs mx-auto">
-                  {userRole === 'admin' 
-                    ? 'Your material is live, and immediately browsable by all SSEC/SIT Sairam students.' 
-                    : 'Your study folder proposal is transferred to Sairam Administrators. It goes live upon authorization! Check Pending actions queue!'}
+                  Your material is live, and immediately browsable by all SSEC/SIT Sairam students.
                 </p>
               </div>
             ) : (
@@ -980,6 +723,21 @@ export default function ResourcesView({
                   />
                 </div>
 
+                <div>
+                  <label className="block text-xs font-mono font-bold text-text-muted mb-1.5 uppercase flex items-center justify-between">
+                    <span>🔑 Required Contributor Passcode</span>
+                    <span className="text-[9px] text-green-400 font-bold lowercase tracking-normal">e.g. SAIRAM-CONTRIB, SAIRAM-ADMIN</span>
+                  </label>
+                  <input
+                    type="password"
+                    required
+                    placeholder="Type the shared contributor or admin code"
+                    value={formData.accessCode}
+                    onChange={(e) => setFormData({ ...formData, accessCode: e.target.value })}
+                    className="w-full text-xs px-4 py-2.5 bg-white/5 border border-border-glass rounded-xl focus:outline-none focus:ring-1 focus:ring-green-450 text-white placeholder-text-muted/40 font-semibold font-sans"
+                  />
+                </div>
+
                 {formError && (
                   <p className="text-xs font-semibold text-rose-450 bg-rose-950/25 p-2.5 rounded-lg border border-rose-900/40">
                     ⚠️ {formError}
@@ -998,7 +756,7 @@ export default function ResourcesView({
                     type="submit"
                     className="w-1/2 py-2.5 bg-green-500 hover:bg-green-600 text-black font-extrabold rounded-xl text-xs hover:shadow transition-all shadow-[0_0_15px_rgba(34,197,94,0.35)] cursor-pointer"
                   >
-                    {userRole === 'admin' ? 'Authorize & Publish' : 'Submit for Approval'}
+                    Publish Note Drive
                   </button>
                 </div>
               </form>
@@ -1014,8 +772,8 @@ export default function ResourcesView({
             
             <div className="flex justify-between items-center mb-4 pb-2 border-b border-border-glass">
               <div>
-                <h4 className="font-extrabold text-white text-base">Propose Note Deletion</h4>
-                <p className="text-[10px] text-text-muted mt-0.5">Contributor request for academic record adjustment</p>
+                <h4 className="font-extrabold text-white text-base">Delete Note Drive</h4>
+                <p className="text-[10px] text-text-muted mt-0.5">Report or remove outdated/broken reference drives</p>
               </div>
               <button 
                 onClick={() => setShowDeletionModal(false)}
@@ -1035,18 +793,6 @@ export default function ResourcesView({
               </div>
 
               <div className="space-y-2">
-                <label className="block text-xs font-mono font-bold text-text-muted uppercase">Your Name (Contributor ID)</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g., Ramya Devi R"
-                  value={deletionContributorName}
-                  onChange={(e) => setDeletionContributorName(e.target.value)}
-                  className="w-full text-xs px-3.5 py-2.5 bg-white/5 border border-border-glass rounded-xl focus:outline-none focus:ring-1 focus:ring-green-450 text-white placeholder-text-muted/30 font-semibold"
-                />
-              </div>
-
-              <div className="space-y-2">
                 <label className="block text-xs font-mono font-bold text-text-muted uppercase">Reason for Removal Notification</label>
                 <textarea
                   required
@@ -1055,6 +801,21 @@ export default function ResourcesView({
                   value={deletionReason}
                   onChange={(e) => setDeletionReason(e.target.value)}
                   className="w-full text-xs px-3.5 py-2.5 bg-white/5 border border-border-glass rounded-xl focus:outline-none focus:ring-1 focus:ring-green-450 text-white placeholder-text-muted/30 resize-none font-medium"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="block text-xs font-mono font-bold text-text-muted uppercase flex items-center justify-between">
+                  <span>🔑 Required Passcode to Delete</span>
+                  <span className="text-[9px] text-rose-400 font-bold lowercase">e.g. SAIRAM-CONTRIB, SAIRAM-ADMIN</span>
+                </label>
+                <input
+                  type="password"
+                  required
+                  placeholder="Type shared passcode to confirm deletion"
+                  value={deletionPasscode}
+                  onChange={(e) => setDeletionPasscode(e.target.value)}
+                  className="w-full text-xs px-3.5 py-2.5 bg-white/5 border border-border-glass rounded-xl focus:outline-none focus:ring-1 focus:ring-rose-550 text-white placeholder-text-muted/40 font-semibold"
                 />
               </div>
 
@@ -1068,9 +829,9 @@ export default function ResourcesView({
                 </button>
                 <button
                   onClick={handleDeletionSubmit}
-                  className="w-1/2 py-2.5 bg-rose-500 hover:bg-rose-600 text-white font-extrabold rounded-xl text-xs shadow-lg shadow-rose-950/10 transition-all cursor-pointer"
+                  className="w-1/2 py-2.5 bg-rose-500 hover:bg-rose-650 text-white font-extrabold rounded-xl text-xs shadow-lg shadow-rose-950/10 transition-all cursor-pointer"
                 >
-                  {userRole === 'admin' ? 'Delete Instantly' : 'Propose Removal'}
+                  Delete Instantly
                 </button>
               </div>
             </div>

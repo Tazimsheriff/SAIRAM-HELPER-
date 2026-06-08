@@ -15,6 +15,10 @@ import { Contributor, Resource } from './types';
 import { Heart, Landmark, Send, Sparkles, Copy, Check, Info } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
+// Firebase Integrations
+import { auth, db, isUsingDummyConfig, handleFirestoreError, OperationType } from './firebase';
+import { collection, doc, onSnapshot, setDoc, updateDoc, deleteDoc } from 'firebase/firestore';
+
 export default function App() {
   const [currentTab, setCurrentTab] = useState('home');
   const [contributors, setContributors] = useState<Contributor[]>([]);
@@ -24,27 +28,79 @@ export default function App() {
   const [showShareModal, setShowShareModal] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  // Load state from local storage or default to curated Sairam data
+  // Load and subscribe from Firebase if configured; fall back to local storage
   useEffect(() => {
-    const savedContributors = localStorage.getItem('sairam_contributors');
-    const savedResources = localStorage.getItem('sairam_resources');
+    if (isUsingDummyConfig) {
+      const savedContributors = localStorage.getItem('sairam_contributors');
+      const savedResources = localStorage.getItem('sairam_resources');
 
-    if (savedContributors) {
-      setContributors(JSON.parse(savedContributors));
-    } else {
-      setContributors(INITIAL_CONTRIBUTORS);
-      localStorage.setItem('sairam_contributors', JSON.stringify(INITIAL_CONTRIBUTORS));
+      if (savedContributors) {
+        setContributors(JSON.parse(savedContributors));
+      } else {
+        setContributors(INITIAL_CONTRIBUTORS);
+        localStorage.setItem('sairam_contributors', JSON.stringify(INITIAL_CONTRIBUTORS));
+      }
+
+      if (savedResources) {
+        setResources(JSON.parse(savedResources));
+      } else {
+        setResources(INITIAL_RESOURCES);
+        localStorage.setItem('sairam_resources', JSON.stringify(INITIAL_RESOURCES));
+      }
+
+      return;
     }
 
-    if (savedResources) {
-      setResources(JSON.parse(savedResources));
-    } else {
-      setResources(INITIAL_RESOURCES);
-      localStorage.setItem('sairam_resources', JSON.stringify(INITIAL_RESOURCES));
-    }
+    // Real Firebase bindings
+    const unsubscribeResources = onSnapshot(collection(db, 'resources'), (snapshot) => {
+      if (snapshot.empty) {
+        // Initial seeding on first connect
+        INITIAL_RESOURCES.forEach(async (res) => {
+          try {
+            await setDoc(doc(db, 'resources', res.id), res);
+          } catch (e) {
+            console.error("Error seeding resource:", e);
+          }
+        });
+      } else {
+        const list: Resource[] = [];
+        snapshot.forEach((docItem) => {
+          list.push({ id: docItem.id, ...docItem.data() } as Resource);
+        });
+        setResources(list);
+      }
+    }, (error) => {
+      console.error("Resources sync error:", error);
+    });
+
+    const unsubscribeContributors = onSnapshot(collection(db, 'contributors'), (snapshot) => {
+      if (snapshot.empty) {
+        // Seeding database
+        INITIAL_CONTRIBUTORS.forEach(async (c) => {
+          try {
+            await setDoc(doc(db, 'contributors', c.id), c);
+          } catch (e) {
+            console.error("Error seeding contributor:", e);
+          }
+        });
+      } else {
+        const list: Contributor[] = [];
+        snapshot.forEach((docItem) => {
+          list.push({ id: docItem.id, ...docItem.data() } as Contributor);
+        });
+        setContributors(list);
+      }
+    }, (error) => {
+      console.error("Contributors sync error:", error);
+    });
+
+    return () => {
+      unsubscribeResources();
+      unsubscribeContributors();
+    };
   }, []);
 
-  // Save state helpers
+  // State saving helpers for dummy fallback mode
   const saveContributors = (list: Contributor[]) => {
     setContributors(list);
     localStorage.setItem('sairam_contributors', JSON.stringify(list));
@@ -56,49 +112,90 @@ export default function App() {
   };
 
   // Add Contributor
-  const handleAddContributor = (newC: Omit<Contributor, 'id' | 'contributionsCount'>) => {
+  const handleAddContributor = async (newC: Omit<Contributor, 'id' | 'contributionsCount'>) => {
+    const id = `contributor-${Date.now()}`;
     const freshContributor: Contributor = {
       ...newC,
-      id: `contributor-${Date.now()}`,
-      contributionsCount: 1, // Start with 1, as they are likely submitting a resource too
-      avatarUrl: undefined, // Will render styled initials icon
+      id,
+      contributionsCount: 1,
+      avatarUrl: undefined,
       isUserAdded: true
     };
 
-    const updated = [freshContributor, ...contributors];
-    saveContributors(updated);
+    if (isUsingDummyConfig) {
+      const updated = [freshContributor, ...contributors];
+      saveContributors(updated);
+      return;
+    }
+
+    try {
+      await setDoc(doc(db, 'contributors', id), freshContributor);
+    } catch (e) {
+      handleFirestoreError(e, OperationType.CREATE, `contributors/${id}`);
+    }
   };
 
   // Add Resource
-  const handleAddResource = (newR: Omit<Resource, 'id' | 'downloadsCount' | 'likes'>) => {
+  const handleAddResource = async (newR: Omit<Resource, 'id' | 'downloadsCount' | 'likes'>) => {
+    const id = `resource-${Date.now()}`;
     const freshResource: Resource = {
       ...newR,
-      id: `resource-${Date.now()}`,
+      id,
       downloadsCount: 0,
       likes: 0
     };
 
-    // Update resources list
-    const updatedResources = [freshResource, ...resources];
-    saveResources(updatedResources);
+    if (isUsingDummyConfig) {
+      const updatedResources = [freshResource, ...resources];
+      saveResources(updatedResources);
+      updateContributorsListForAdd(newR.uploadedBy, newR.department);
+      return;
+    }
 
-    // Dynamic Credit: find if the uploader name matches an existing contributor, and increment their score!
+    try {
+      await setDoc(doc(db, 'resources', id), freshResource);
+      
+      // Update score or auto insert contributor on database
+      const existingC = contributors.find(c => c.name.toLowerCase() === newR.uploadedBy.toLowerCase());
+      if (existingC) {
+        await updateDoc(doc(db, 'contributors', existingC.id), {
+          contributionsCount: existingC.contributionsCount + 1
+        });
+      } else {
+        const cid = `contributor-${Date.now()}`;
+        const autoC: Contributor = {
+          id: cid,
+          name: newR.uploadedBy,
+          regNo: 'SEC-UPLOADER',
+          department: newR.department,
+          batch: '2023-2027',
+          contributionsCount: 1,
+          isUserAdded: true
+        };
+        await setDoc(doc(db, 'contributors', cid), autoC);
+      }
+    } catch (e) {
+      handleFirestoreError(e, OperationType.CREATE, `resources/${id}`);
+    }
+  };
+
+  // Clean helper to update contributors score locally
+  const updateContributorsListForAdd = (name: string, dept: string) => {
     let contributorFound = false;
     const updatedContributors = contributors.map((c) => {
-      if (c.name.toLowerCase() === newR.uploadedBy.toLowerCase()) {
+      if (c.name.toLowerCase() === name.toLowerCase()) {
         contributorFound = true;
         return { ...c, contributionsCount: c.contributionsCount + 1 };
       }
       return c;
     });
 
-    // If uploader didn't exist in contributors, let's create a new contributor card for them automatically!
     if (!contributorFound) {
       const autoContributor: Contributor = {
         id: `contributor-${Date.now()}`,
-        name: newR.uploadedBy,
+        name,
         regNo: 'SEC-UPLOADER',
-        department: newR.department,
+        department: dept,
         batch: '2023-2027',
         contributionsCount: 1,
         isUserAdded: true
@@ -110,35 +207,67 @@ export default function App() {
   };
 
   // Like Resource
-  const handleLikeResource = (id: string) => {
-    const updated = resources.map((r) =>
-      r.id === id ? { ...r, likes: (r.likes || 0) + 1 } : r
-    );
-    saveResources(updated);
+  const handleLikeResource = async (id: string) => {
+    if (isUsingDummyConfig) {
+      const updated = resources.map((r) =>
+        r.id === id ? { ...r, likes: (r.likes || 0) + 1 } : r
+      );
+      saveResources(updated);
+      return;
+    }
+
+    try {
+      const targetR = resources.find(r => r.id === id);
+      if (targetR) {
+        await updateDoc(doc(db, 'resources', id), {
+          likes: (targetR.likes || 0) + 1
+        });
+      }
+    } catch (e) {
+      handleFirestoreError(e, OperationType.UPDATE, `resources/${id}`);
+    }
   };
 
-  // Simulated Drive Notes Download Incrementor
-  const handleDownloadResource = (id: string) => {
+  // Download Notes Incrementor
+  const handleDownloadResource = async (id: string) => {
     const resItem = resources.find(r => r.id === id);
     if (!resItem) return;
 
-    // Increment count
-    const updated = resources.map((r) =>
-      r.id === id ? { ...r, downloadsCount: (r.downloadsCount || 0) + 1 } : r
-    );
-    saveResources(updated);
+    if (isUsingDummyConfig) {
+      const updated = resources.map((r) =>
+        r.id === id ? { ...r, downloadsCount: (r.downloadsCount || 0) + 1 } : r
+      );
+      saveResources(updated);
+      window.open(resItem.downloadUrl, '_blank', 'noopener,noreferrer');
+      return;
+    }
 
-    // Open drive URL (using standard _blank wrapper)
-    window.open(resItem.downloadUrl, '_blank', 'noopener,noreferrer');
+    try {
+      await updateDoc(doc(db, 'resources', id), {
+        downloadsCount: (resItem.downloadsCount || 0) + 1
+      });
+      window.open(resItem.downloadUrl, '_blank', 'noopener,noreferrer');
+    } catch (e) {
+      handleFirestoreError(e, OperationType.UPDATE, `resources/${id}`);
+    }
   };
 
   // Delete Resource
-  const handleDeleteResource = (id: string) => {
-    const updated = resources.filter((r) => r.id !== id);
-    saveResources(updated);
+  const handleDeleteResource = async (id: string) => {
+    if (isUsingDummyConfig) {
+      const updated = resources.filter((r) => r.id !== id);
+      saveResources(updated);
+      return;
+    }
+
+    try {
+      await deleteDoc(doc(db, 'resources', id));
+    } catch (e) {
+      handleFirestoreError(e, OperationType.DELETE, `resources/${id}`);
+    }
   };
 
-  // Copy URL to clipboard
+  // Copy URL
   const handleCopyLink = () => {
     const pageUrl = window.location.href;
     navigator.clipboard.writeText(pageUrl).then(() => {
@@ -146,6 +275,7 @@ export default function App() {
       setTimeout(() => setCopied(false), 2000);
     });
   };
+
 
   return (
     <div className="min-h-screen flex flex-col bg-bg-base text-text-primary font-sans antialiased selection:bg-green-500 selection:text-black relative overflow-hidden">
@@ -158,6 +288,7 @@ export default function App() {
         currentTab={currentTab} 
         setCurrentTab={setCurrentTab} 
         onShareApp={() => setShowShareModal(true)} 
+        isUsingDummyConfig={isUsingDummyConfig}
       />
 
       {/* Main Container Frame */}

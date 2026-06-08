@@ -6,14 +6,23 @@
 import React, { useState } from 'react';
 import { GraduationCap, HeartHandshake, BookOpen, Calculator, Clock, Menu, X, Share2 } from 'lucide-react';
 
+// Cloud connection indicators are drawn natively, no login/logout icons needed
+
 interface NavbarProps {
   currentTab: string;
   setCurrentTab: (tab: string) => void;
   onShareApp: () => void;
+  isUsingDummyConfig: boolean;
 }
 
-export default function Navbar({ currentTab, setCurrentTab, onShareApp }: NavbarProps) {
+export default function Navbar({
+  currentTab,
+  setCurrentTab,
+  onShareApp,
+  isUsingDummyConfig
+}: NavbarProps) {
   const [isOpen, setIsOpen] = useState(false);
+
 
   const navItems = [
     { id: 'home', label: 'Home', icon: GraduationCap },
@@ -58,7 +67,7 @@ export default function Navbar({ currentTab, setCurrentTab, onShareApp }: Navbar
                    }}
                    className={`flex items-center space-x-2 px-3.5 py-2 rounded-lg text-sm font-medium transition-all duration-200 select-none ${
                      isActive
-                       ? 'bg-green-500/10 text-green-400 border border-green-500/30 shadow-[0_0_10px_rgba(34,197,94,0.1)]'
+                       ? 'bg-green-500/10 text-green-400 border border-green-500/30'
                        : 'text-text-muted hover:text-green-300 hover:bg-white/3'
                    }`}
                  >
@@ -70,10 +79,23 @@ export default function Navbar({ currentTab, setCurrentTab, onShareApp }: Navbar
             
             <span className="h-5 w-px bg-border-glass mx-1"></span>
 
+            {/* Cloud Real-time Database Status Badge */}
+            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-green-500/5 border border-green-500/20 rounded-xl text-[10px] uppercase font-black tracking-wide select-none">
+              <span className="relative flex h-1.5 w-1.5">
+                <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${isUsingDummyConfig ? 'bg-amber-400' : 'bg-green-400'}`}></span>
+                <span className={`relative inline-flex rounded-full h-1.5 w-1.5 ${isUsingDummyConfig ? 'bg-amber-500' : 'bg-green-500'}`}></span>
+              </span>
+              <span className={`font-mono text-[9px] ${isUsingDummyConfig ? 'text-amber-400' : 'text-green-400'}`}>
+                {isUsingDummyConfig ? 'Offline Sandbox' : 'Cloud Sync Active'}
+              </span>
+            </div>
+
+            <span className="h-5 w-px bg-border-glass mx-0.5"></span>
+
             {/* Premium CTA Button */}
             <button
-              onClick={onShareApp}
-              className="flex items-center space-x-1.5 bg-green-500/10 hover:bg-green-500/20 text-green-400 border border-green-500/40 font-bold px-4 py-2 rounded-lg text-xs tracking-wider uppercase shadow-[0_0_15px_rgba(34,197,94,0.15)] hover:shadow-[0_0_20px_rgba(34,197,94,0.25)] hover:scale-[1.02] active:scale-95 transition-all duration-200 cursor-pointer"
+               onClick={onShareApp}
+               className="flex items-center space-x-1.5 bg-green-500/10 hover:bg-green-500/20 text-green-400 border border-green-500/40 font-bold px-4 py-2 rounded-lg text-xs tracking-wider uppercase shadow-[0_0_15px_rgba(34,197,94,0.15)] hover:shadow-[0_0_20px_rgba(34,197,94,0.25)] hover:scale-[1.02] active:scale-95 transition-all duration-200 cursor-pointer"
             >
               <Share2 className="h-3.5 w-3.5" />
               <span>Share</span>

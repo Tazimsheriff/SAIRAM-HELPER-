@@ -1,0 +1,88 @@
+{
+  "entities": {
+    "Resource": {
+      "title": "Resource",
+      "description": "An academic study material, syllabus, lab manual, or question paper.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique identifier of the resource document." },
+        "subjectCode": { "type": "string", "description": "Course code of the subject." },
+        "subjectName": { "type": "string", "description": "Full formal course name or title." },
+        "department": { "type": "string", "description": "Target engineering branch abbreviation." },
+        "semester": { "type": "integer", "description": "Target semester number." },
+        "type": { "type": "string", "enum": ["Notes", "Question Paper", "Lab Manual", "Syllabus"], "description": "Classification of the material." },
+        "downloadUrl": { "type": "string", "format": "uri", "description": "Direct Google Drive or external repository link." },
+        "uploadedBy": { "type": "string", "description": "Full name of the academic contributor." },
+        "fileSize": { "type": "string", "description": "Readable estimated file size." },
+        "downloadsCount": { "type": "integer", "description": "Total drive downloads or hit counts." },
+        "likes": { "type": "integer", "description": "Total rating or likes count." }
+      },
+      "required": ["subjectCode", "subjectName", "department", "semester", "type", "downloadUrl", "uploadedBy"]
+    },
+    "Contributor": {
+      "title": "Contributor",
+      "description": "An outstanding student contributor who uploaded verified notes or exam prep sheets.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Firestore document ID, matching user UID or auto ID." },
+        "name": { "type": "string", "description": "Full name of the contributor." },
+        "regNo": { "type": "string", "description": "Registration identifier." },
+        "department": { "type": "string", "description": "Engineering branch." },
+        "batch": { "type": "string", "description": "Academic years batch." },
+        "contributionsCount": { "type": "integer", "description": "Number of validated resources uploaded." },
+        "avatarUrl": { "type": "string", "format": "uri", "description": "Optional profile picture url." },
+        "isUserAdded": { "type": "boolean", "description": "Flag to mark dynamically added profiles." }
+      },
+      "required": ["name", "regNo", "department", "batch", "contributionsCount"]
+    },
+    "ModeratorAction": {
+      "title": "ModeratorAction",
+      "description": "A submission log representing a proposed addition or requested deletion of a student file, requiring admin review.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "type": { "type": "string", "enum": ["ADD", "DELETE"] },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "contributorName": { "type": "string" },
+        "status": { "type": "string", "enum": ["PENDING", "APPROVED", "DECLINED"] },
+        "reason": { "type": "string" },
+        "subjectCode": { "type": "string" },
+        "subjectName": { "type": "string" },
+        "department": { "type": "string" },
+        "semester": { "type": "integer" },
+        "materialType": { "type": "string" },
+        "downloadUrl": { "type": "string" },
+        "targetResourceId": { "type": "string" }
+      },
+      "required": ["type", "timestamp", "contributorName", "status"]
+    },
+    "Passcode": {
+      "title": "Passcode",
+      "description": "Dynamic authorized administrative and contributor passcodes stored securely on Firestore.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Passcode token capitalized (e.g., SAIRAM-ADMIN)." },
+        "role": { "type": "string", "enum": ["admin", "contributor"], "description": "Dynamic clearance tier." }
+      },
+      "required": ["role"]
+    }
+  },
+  "firestore": {
+    "/resources/{resourceId}": {
+      "schema": "Resource",
+      "description": "Global collection of active study documents."
+    },
+    "/contributors/{contributorId}": {
+      "schema": "Contributor",
+      "description": "Academic star contributors list."
+    },
+    "/proposals/{proposalId}": {
+      "schema": "ModeratorAction",
+      "description": "Queued proposals and administrative audit logs."
+    },
+    "/passcodes/{passcodeId}": {
+      "schema": "Passcode",
+      "description": "Secure access tokens completely locked from public browser read/writes."
+    }
+  }
+}
